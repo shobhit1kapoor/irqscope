@@ -258,7 +258,11 @@ class PluginBootstrapTests(unittest.TestCase):
                 adapter.ida_bytes.get_flags = lambda ea: 1
                 adapter.ida_ua.insn_t = lambda: SimpleNamespace(ops=[], get_canon_feature=lambda: 0)
                 adapter.ida_ua.decode_insn = lambda insn, ea: (
-                    setattr(insn, "ops", instruction_specs[ea][1]) or True
+                    setattr(
+                        insn, "ops",
+                        instruction_specs[ea][1]
+                        + [void_operand] * (8 - len(instruction_specs[ea][1])),
+                    ) or True
                 )
                 adapter.idc.print_insn_mnem = lambda ea: instruction_specs[ea][0]
                 adapter.idc.print_operand = lambda ea, operand: (
@@ -283,6 +287,79 @@ class PluginBootstrapTests(unittest.TestCase):
                 self.assertEqual(len(indexed_accesses), 1)
                 self.assertEqual(indexed_accesses[0].register.name, "DATA1")
                 self.assertEqual(indexed_accesses[0].evidence, "constant-index-register")
+
+                # Exercise the instruction transfer end-to-end: a literal is
+                # shifted and combined before the constant store reaches MMIO.
+                instruction_specs.update({
+                    0x420: ("mov", [
+                        SimpleNamespace(type=1, reg=0),
+                        SimpleNamespace(type=2, value=3),
+                        void_operand,
+                    ]),
+                    0x424: ("lsl", [
+                        SimpleNamespace(type=1, reg=0),
+                        SimpleNamespace(type=2, value=2),
+                        void_operand,
+                    ]),
+                    0x428: ("orr", [
+                        SimpleNamespace(type=1, reg=0),
+                        SimpleNamespace(type=2, value=1),
+                        void_operand,
+                    ]),
+                    0x42C: ("str", [
+                        SimpleNamespace(type=1, reg=0, dtype=3),
+                        SimpleNamespace(type=3, phrase=2, addr=0, dtype=3),
+                        void_operand,
+                    ]),
+                })
+                adapter.idc.print_operand = lambda ea, operand: (
+                    "[r2]" if ea == 0x42C and operand == 1 else
+                    "r0" if ea in {0x420, 0x424, 0x428} and operand == 0 else ""
+                )
+                utilities.Heads = lambda start, end: [0x420, 0x424, 0x428, 0x42C]
+                config_register = Register(
+                    "UART", "CONFIG", 0x40010000, 32, access="read-write"
+                )
+                _, _, _, constant_writes, _ = adapter._transfer_block(
+                    SimpleNamespace(start_ea=0x420, end_ea=0x430),
+                    ({2: config_register.address},
+                     {"primask": 0, "basepri": 0, "faultmask": 0}, {}),
+                    DeviceModel("Fixture", registers={config_register.address: config_register}),
+                    0x400, "constant_writer", collect=True,
+                )
+                self.assertEqual(len(constant_writes), 1)
+                self.assertEqual(constant_writes[0].value, 13)
+                self.assertEqual(
+                    constant_writes[0].value_evidence,
+                    "constant-propagated-register",
+                )
+                instruction_specs.update({
+                    0x430: ("add", [
+                        SimpleNamespace(type=1, reg=0),
+                        SimpleNamespace(type=1, reg=0),
+                        SimpleNamespace(type=1, reg=1),
+                        void_operand,
+                    ]),
+                    0x434: ("str", [
+                        SimpleNamespace(type=1, reg=0, dtype=3),
+                        SimpleNamespace(type=3, phrase=2, addr=0, dtype=3),
+                        void_operand,
+                    ]),
+                })
+                adapter.idc.print_operand = lambda ea, operand: (
+                    "[r2]" if ea == 0x434 and operand == 1 else
+                    "r1, lsl #2" if ea == 0x430 and operand == 2 else ""
+                )
+                utilities.Heads = lambda start, end: [0x430, 0x434]
+                _, _, _, shifted_writes, _ = adapter._transfer_block(
+                    SimpleNamespace(start_ea=0x430, end_ea=0x438),
+                    ({0: 5, 1: 2, 2: config_register.address},
+                     {"primask": 0, "basepri": 0, "faultmask": 0}, {}),
+                    DeviceModel("Fixture", registers={config_register.address: config_register}),
+                    0x400, "shifted_writer", collect=True,
+                )
+                self.assertEqual([access.value for access in shifted_writes], [13])
+
                 from irqscope.model import EnumeratedValue, EnumeratedValues, RegisterField
                 exported_register = plugin_module._json_register(Register(
                     peripheral="BASE",
