@@ -61,7 +61,9 @@ def _verify_shape(objdump: str, symbolized: Path, stripped: Path) -> None:
         functions[match.group(2)] = match.group(3).lower()
     required = {
         "transfer_unsafe", "transfer_masked", "USART_IRQHandler", "NVIC_EnableIRQ",
-        "configure_and_acknowledge_foreground", "invalid_config_mode_write_fixture",
+        "configure_and_acknowledge_foreground",
+        "configure_mode_byte_and_acknowledge_fixture",
+        "invalid_config_mode_write_fixture",
         "branch_shifted_constant_fixture",
     }
     if not required.issubset(functions):
@@ -77,6 +79,9 @@ def _verify_shape(objdump: str, symbolized: Path, stripped: Path) -> None:
                  "USART_IRQHandler", "TIMER_IRQHandler"):
         if not re.search(r"\bstr(?:\.w)?\b", functions.get(name, "")):
             raise RuntimeError(f"Demo function {name} no longer contains an MMIO store")
+    byte_fixture = functions["configure_mode_byte_and_acknowledge_fixture"]
+    if not re.search(r"\bstrb(?:\.w)?\b", byte_fixture):
+        raise RuntimeError("Byte-lane fixture no longer contains a byte store")
     branch_fixture = functions["branch_shifted_constant_fixture"]
     if not all(token in branch_fixture for token in ("cmp", "lsl", "bne", "str")):
         raise RuntimeError("Shifted-comparison fixture no longer contains its branch/store shape")

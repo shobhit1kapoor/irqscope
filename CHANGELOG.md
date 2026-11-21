@@ -62,5 +62,6 @@ Runtime behavior and presentation have not yet been verified in an IDA installat
 - Assemble matched foreground and ordered ISR contract events into a conditional synchronized candidate timeline with CFG links, an explicit insertion gap, and limitations; bump the evidence schema to v25.
 - Preserve each recovered effective MMIO address in findings, dashboard rows, and evidence exports; map byte-addressed partial accesses to one unambiguous containing SVD register and abstain on overlapping or crossing ranges.
 - Compare constrained partial protocol writes in register-relative bit lanes using fixed SVD endianness and byte address units; abstain when the lane cannot be established.
+- Extend the reproducible Cortex-M demo with a byte-lane CONFIG write and verify that `MODE=FAST` matches through the imported SVD and protocol contract.
 
 The current source tree has focused unit coverage for these additions, but none of the new behavior has been exercised inside IDA.

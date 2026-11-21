@@ -327,6 +327,60 @@ class ProtocolAnalysisTests(unittest.TestCase):
         self.assertEqual(len(protocol.transactions[0].steps), 5)
         self.assertEqual(len(protocol.transactions[0].interference), 3)
 
+    def test_authored_byte_lane_fixture_matches_demo_enum_protocol(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        from irqscope.svd import check_write_constraints, parse_svd
+
+        device = parse_svd(os.path.join(root, "demo", "demo.svd"))
+        protocol = parse_protocol(os.path.join(root, "demo", "uart-protocol.json"), device)
+        config = device.get_register(0x4001300C)
+        events = device.get_register(0x40013010)
+        byte_value = 0x2
+        byte_access = MMIOAccess(
+            0x110, 0x100, "configure_mode_byte_and_acknowledge_fixture", config,
+            "write", 8, "fixture-strb", block_start_ea=0x100, value=byte_value,
+            access_address=config.address,
+            write_constraint_checks=check_write_constraints(
+                config, byte_value, 8, access_address=config.address,
+                endianness=device.endianness,
+                address_unit_bits=device.address_unit_bits,
+            ),
+        )
+        accesses = [
+            byte_access,
+            MMIOAccess(
+                0x120, 0x100, "configure_mode_byte_and_acknowledge_fixture", events,
+                "write", 32, "fixture-str", block_start_ea=0x100, value=1,
+                access_address=events.address,
+            ),
+            MMIOAccess(
+                0x210, 0x200, "TIMER_IRQHandler", config, "write", 32,
+                "fixture-str", block_start_ea=0x200, value=1,
+                access_address=config.address,
+            ),
+            MMIOAccess(
+                0x220, 0x200, "USART_IRQHandler", events, "write", 32,
+                "fixture-str", block_start_ea=0x200, value=2,
+                access_address=events.address,
+            ),
+        ]
+        cfg = {
+            0x100: {0x100: CFGBlock(0x100, 0x130)},
+            0x200: {0x200: CFGBlock(0x200, 0x230)},
+        }
+        report = build_protocol_findings(protocol, device, accesses, {0x200: 16}, cfg)
+        finding = next(
+            item for item in report.findings
+            if any(access.ea == byte_access.ea for access in item.protocol_events)
+        )
+
+        self.assertEqual(finding.protocol_events[0].access_address, config.address)
+        self.assertEqual(finding.protocol_events[0].width_bits, 8)
+        self.assertIn(
+            ("MODE", "satisfied"),
+            {(check.scope, check.status) for check in byte_access.write_constraint_checks},
+        )
+
     def test_sequence_cap_is_reported_as_truncation(self):
         protocol = self.parse_contract({
             "format": "irqscope-protocol-v1", "name": "model",

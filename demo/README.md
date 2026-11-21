@@ -26,7 +26,8 @@ Open the ELF in IDA as an ARM Cortex-M image. Import `demo/demo.svd`, optionally
 
 - MOVW/MOVT-constructed peripheral base plus register offset resolves to `SIMUART.STATUS`, `DATA`, and `CONTROL`.
 - The Device Map shows the `READY` read encodings (`NOT_READY`, `READY`), including `READY=NOT_READY` at the declared synthetic reset state, and the `START` write commands (`IDLE`, `BEGIN_TRANSFER`) from the synthetic SVD.
-- `CONFIG.MODE` declares that writes must use one of its SVD enumerated values. IRQScope checks supported full-width recovered constants against this restriction; partial-width stores and other unsupported forms remain unknown.
+- `CONFIG.MODE` declares that writes must use one of its SVD enumerated values. IRQScope checks recovered values when the store covers the full constrained field and the SVD metadata establishes its bit lane; incomplete field coverage or unknown lane metadata remains unknown.
+- `configure_mode_byte_and_acknowledge_fixture` writes byte value `0x2` at the CONFIG base, which places MODE bits 1..2 at FAST on this little-endian synthetic device, then acknowledges EVENTS. Its `STRB` is also covered by the `MODE=FAST` protocol event.
 - `invalid_config_mode_write_fixture` writes `CONFIG=0x7`, which encodes the unlisted `MODE=3`; a full-width constant recovery should report the declared enum-only constraint as violated. This is a static instruction result, not proof that firmware executes the function.
 - The device-level reset default (`0x0`, known mask `0xFFFFFFFF`) should appear on each register after SVD inheritance; these synthetic reset bits are descriptive evidence and are not used to initialize the analysis state.
 - `USART_IRQHandler` maps from external vector slot 16.
@@ -39,6 +40,6 @@ Open the ELF in IDA as an ARM Cortex-M image. Import `demo/demo.svd`, optionally
 - The SVD read-to-clear metadata raises the `STATUS` interaction for analyst review.
 - The candidate details should show the foreground `STATUS` access, one shortest CFG block path to a later same-peripheral access, and the ISR access as an insertion sketch. This is not a proof of an actual hardware schedule.
 - With `uart-protocol.json` loaded, IRQScope can additionally match the declared `STATUS → DATA → CONTROL → STATUS → DATA` foreground sequence against the handler's declared `STATUS` read, `DATA` read, and `CONTROL` write interference. This contract is intentionally synthetic and its sequence/path feasibility must be confirmed in IDA; no observed run is claimed here.
-- The second contract uses the SVD name `MODE=FAST` plus the exact EVENTS write value to match the foreground `CONFIG=3 → EVENTS=1` transaction, then matches handler writes `CONFIG=1` and `EVENTS=2`. The enum mask distinguishes the order-dependent configuration assignment from the disjoint W1C acknowledgement.
+- The second contract uses the SVD name `MODE=FAST` plus the exact EVENTS write value to match both the full-width `CONFIG=3 → EVENTS=1` and byte-lane `CONFIG.MODE=FAST → EVENTS=1` foreground transactions, then matches handler writes `CONFIG=1` and `EVENTS=2`. The enum mask distinguishes the order-dependent configuration assignment from the disjoint W1C acknowledgement.
 
 This is a fixture specification, not a verified plugin result. The plugin has not been run in IDA, so the expected findings and current prototype coverage remain unconfirmed.

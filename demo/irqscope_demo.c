@@ -103,6 +103,13 @@ __attribute__((noinline, used)) void configure_and_acknowledge_foreground(void)
     UART_EVENTS = 0x1u;
 }
 
+__attribute__((noinline, used)) void configure_mode_byte_and_acknowledge_fixture(void)
+{
+    /* Byte store at CONFIG base: little-endian bits 1..2 encode MODE=FAST. */
+    *(volatile uint8_t *)(DEMO_UART_BASE + 0x0Cu) = 0x2u;
+    UART_EVENTS = 0x1u;
+}
+
 __attribute__((noinline, used)) void invalid_config_mode_write_fixture(void)
 {
     /* MODE=3 is not listed by the synthetic SVD's enum-only write constraint. */
@@ -164,6 +171,7 @@ void main(void)
     (void)transfer_unsafe(0x5Au);
     (void)transfer_masked(0xA5u);
     configure_and_acknowledge_foreground();
+    configure_mode_byte_and_acknowledge_fixture();
     invalid_config_mode_write_fixture();
     for (;;) {
         __asm volatile("wfi");
