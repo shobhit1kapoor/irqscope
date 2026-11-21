@@ -1,6 +1,7 @@
 """IDA-facing discovery helpers. Import this module only from inside IDA."""
 
 import re
+from bisect import bisect_left, bisect_right
 from typing import Dict, List, Optional, Tuple
 
 import ida_bytes
@@ -352,6 +353,45 @@ def _report_progress(progress, message):
         raise AnalysisCancelled(message)
 
 
+class _RegisterAccessResolver:
+    """Resolve exact SVD starts and unambiguous byte accesses inside a register."""
+
+    def __init__(self, model: DeviceModel):
+        self.model = model
+        self.bases = sorted(model.registers)
+        self.address_unit_bits = model.address_unit_bits
+        self.maximum_register_bytes = max(
+            ((register.size_bits + 7) // 8 for register in model.all_registers()),
+            default=0,
+        )
+
+    def resolve(self, address: int, access_width_bits: Optional[int]):
+        exact = self.model.get_registers(address)
+        if exact:
+            return exact
+        if (self.address_unit_bits != 8 or access_width_bits is None
+                or access_width_bits <= 0 or access_width_bits % 8 != 0
+                or self.maximum_register_bytes == 0):
+            return ()
+        access_bytes = access_width_bits // 8
+        lower_base = address - self.maximum_register_bytes + 1
+        start = bisect_left(self.bases, lower_base)
+        end = bisect_right(self.bases, address)
+        candidates = []
+        for base in self.bases[start:end]:
+            aliases = self.model.get_registers(base)
+            if not aliases or any(
+                register.size_bits % 8 != 0
+                or address + access_bytes > base + register.size_bits // 8
+                for register in aliases
+            ):
+                continue
+            candidates.append(aliases)
+            if len(candidates) > 1:
+                return ()
+        return candidates[0] if candidates else ()
+
+
 def _has_arm_condition_suffix(ea, mnemonic):
     """Return whether IDA renders this ARM instruction with a condition suffix."""
     line = ida_lines.tag_remove(idc.generate_disasm_line(ea, 0) or "")
@@ -450,7 +490,7 @@ def _rendered_operand_registers(ea, operand_index):
 
 
 def _transfer_block(block, incoming, model, function_ea, function_name, collect=False,
-                    nvic_summaries=None, progress=None):
+                    nvic_summaries=None, progress=None, register_resolver=None):
     regs, masks, saved = (dict(incoming[0]), dict(incoming[1]), dict(incoming[2]))
     accesses = []
     interrupt_config = []
@@ -486,9 +526,6 @@ def _transfer_block(block, incoming, model, function_ea, function_name, collect=
         current = (regs, masks, saved)
         if collect and operation != "unknown":
             for address, operand_index, evidence in _memory_operand_addresses(ea, insn, current):
-                register = model.get_register(address)
-                if register is None:
-                    continue
                 operand = insn.ops[operand_index]
                 width_by_dtype = {
                     getattr(ida_ua, "dt_byte", -1): 8,
@@ -497,7 +534,16 @@ def _transfer_block(block, incoming, model, function_ea, function_name, collect=
                     getattr(ida_ua, "dt_qword", -4): 64,
                     getattr(ida_ua, "dt_byte16", -5): 128,
                 }
-                width = width_by_dtype.get(operand.dtype, register.size_bits)
+                access_width = width_by_dtype.get(operand.dtype)
+                register_group = (
+                    register_resolver.resolve(address, access_width)
+                    if register_resolver is not None
+                    else model.get_registers(address)
+                )
+                if not register_group:
+                    continue
+                register = register_group[0]
+                width = access_width if access_width is not None else register.size_bits
                 written_value = None
                 value_evidence = None
                 if operation == "write" and mnemonic.startswith("str") and not mnemonic.startswith("strd"):
@@ -514,7 +560,7 @@ def _transfer_block(block, incoming, model, function_ea, function_name, collect=
                         written_value &= (1 << width) - 1
                 write_constraint_checks = (
                     check_write_constraints(
-                        register, written_value, width, model.get_registers(address)[1:], address,
+                        register, written_value, width, register_group[1:], address,
                         model.endianness, model.address_unit_bits,
                     )
                     if operation == "write" else ()
@@ -531,7 +577,7 @@ def _transfer_block(block, incoming, model, function_ea, function_name, collect=
                     basepri=masks.get("basepri"),
                     faultmask=masks.get("faultmask"),
                     block_start_ea=block.start_ea,
-                    register_aliases=model.get_registers(address)[1:],
+                    register_aliases=register_group[1:],
                     value=written_value,
                     value_evidence=value_evidence,
                     write_constraint_checks=write_constraint_checks,
@@ -914,6 +960,7 @@ def scan_mmio_with_cfg(model: DeviceModel, progress=None) -> Tuple[List[MMIOAcce
     base as heuristic summaries for callers; indexed bounds are not recovered.
     """
     found = {}
+    register_resolver = _RegisterAccessResolver(model)
     cfg_by_function: Dict[int, Dict[int, CFGBlock]] = {}
     interrupt_config = {}
     scan_warnings: List[str] = []
@@ -1181,7 +1228,8 @@ def scan_mmio_with_cfg(model: DeviceModel, progress=None) -> Tuple[List[MMIOAcce
                     f"Propagating CFG state in {func_name} ({block_visits[0]} block visits)",
                 )
             return _transfer_block(
-                block, state, model, func_start, func_name, progress=progress
+                block, state, model, func_start, func_name, progress=progress,
+                register_resolver=register_resolver,
             )[0:3]
 
         in_states, out_states, converged, iterations = _propagate_cfg_states(
@@ -1271,6 +1319,7 @@ def scan_mmio_with_cfg(model: DeviceModel, progress=None) -> Tuple[List[MMIOAcce
             _, _, _, accesses, config_events = _transfer_block(
                 block, incoming, model, func_start, func_name, collect=True,
                 nvic_summaries=nvic_summaries, progress=progress,
+                register_resolver=register_resolver,
             )
             for access in accesses:
                 found[(access.ea, access.register.address)] = access

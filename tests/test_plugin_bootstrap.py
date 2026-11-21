@@ -288,6 +288,53 @@ class PluginBootstrapTests(unittest.TestCase):
                 self.assertEqual(indexed_accesses[0].register.name, "DATA1")
                 self.assertEqual(indexed_accesses[0].evidence, "constant-index-register")
 
+                interior_register = Register("UART", "CONFIG", 0x40010000, 32)
+                interior_model = DeviceModel(
+                    "Fixture", registers={interior_register.address: interior_register},
+                    address_unit_bits=8, endianness="little",
+                )
+                interior_resolver = adapter._RegisterAccessResolver(interior_model)
+                self.assertEqual(
+                    [register.display_name for register in
+                     interior_resolver.resolve(0x40010001, 8)],
+                    ["UART.CONFIG"],
+                )
+                self.assertEqual(interior_resolver.resolve(0x40010003, 16), ())
+                no_byte_units = adapter._RegisterAccessResolver(DeviceModel(
+                    "Fixture", registers={interior_register.address: interior_register},
+                ))
+                self.assertEqual(no_byte_units.resolve(0x40010001, 8), ())
+                overlapping_model = DeviceModel("Fixture", registers={
+                    0x40010000: interior_register,
+                    0x40010002: Register("UART", "OVERLAP", 0x40010002, 32),
+                }, address_unit_bits=8)
+                self.assertEqual(
+                    adapter._RegisterAccessResolver(overlapping_model).resolve(
+                        0x40010003, 8
+                    ), (),
+                )
+
+                instruction_specs[0x414] = ("strb", [
+                    SimpleNamespace(type=1, reg=0, dtype=1),
+                    SimpleNamespace(type=3, phrase=7, addr=1, dtype=1),
+                    void_operand,
+                ])
+                adapter.idc.print_operand = lambda ea, operand: (
+                    "[r2, #1]" if ea == 0x414 and operand == 1 else ""
+                )
+                utilities.Heads = lambda start, end: [0x414]
+                _, _, _, interior_accesses, _ = adapter._transfer_block(
+                    SimpleNamespace(start_ea=0x414, end_ea=0x418),
+                    ({0: 0xAB, 2: interior_register.address},
+                     {"primask": 0, "basepri": 0, "faultmask": 0}, {}),
+                    interior_model, 0x400, "interior_writer", collect=True,
+                    register_resolver=interior_resolver,
+                )
+                self.assertEqual(len(interior_accesses), 1)
+                self.assertEqual(interior_accesses[0].register.name, "CONFIG")
+                self.assertEqual(interior_accesses[0].access_address, 0x40010001)
+                self.assertEqual(interior_accesses[0].width_bits, 8)
+
                 # Exercise the instruction transfer end-to-end: a literal is
                 # shifted and combined before the constant store reaches MMIO.
                 instruction_specs.update({
