@@ -7,8 +7,8 @@ The 2026 contest deadline is November 30, 2026. As of November 21, only nine cal
 ## Current prototype limits
 
 - No IDA runtime validation has been performed.
-- HCLI 0.28.0 lint passed with no recommendations for a temporary package built using sample author/repository metadata; no project-identity release archive or clean IDA install has been validated.
-- The manifest uses the submitter-provided author name/email and targets `https://github.com/shobhit1kapoor/irqscope`; the public repository now exists and its initial validation workflow passed.
+- HCLI 0.28.0 lint passed with no recommendations for both a sample-metadata archive and a reproducibly built archive using the submitter-provided author/repository metadata. Package lint does not validate plugin behavior in IDA.
+- The manifest uses the submitter-provided author name/email and targets `https://github.com/shobhit1kapoor/irqscope`; the public repository exists and the latest hosted validation workflow passed on the current `main` commit.
 - SVD peripheral, cluster, register, field, and named enumerated-value-set `derivedFrom` resolution plus peripheral, cluster, register, and field array expansion are implemented in the local parser. CPU endianness, address units, and `nvicPrioBits` are retained for conservative byte-lane and conditional priority evidence. Validated `alternatePeripheral`, `alternateCluster`, and `alternateRegister` links are retained and shown separately from generic address aliases. Full schema validation and selection among shared-address SVD descriptions remain incomplete; address collisions are retained as aliases and surfaced as ambiguity.
 - Inherited CMSIS-SVD `resetValue` and `resetMask` metadata is now retained, width-checked, shown in the register maps, and exported in evidence-v25. Reset metadata is descriptive only; the analyzer does not initialize a modeled hardware state from it.
 - CMSIS-SVD `writeConstraint` ranges, enum-only rules, and write-as-read restrictions are retained at declared scopes; register constraints propagate to fields as defaults and explicit field constraints override or clear them. The source of each effective field constraint is shown in the map and exported in evidence-v25. Supported byte, halfword, and full-width stores check fully covered fields when SVD declares a fixed endian and 8-bit address units; partial field coverage, ambiguous SVD aliases, register-level enum composition, and write-as-read history remain unknown.
@@ -18,7 +18,7 @@ The 2026 contest deadline is November 30, 2026. As of November 21, only nine cal
 - Vector-table detection is heuristic. A selected table should be manually checked against the image and device.
 - The witness sketch follows CFG reachability to one later same-peripheral foreground MMIO event and shows observed same-peripheral accesses on the shortest handler path to the selected ISR event. The sequence miner proposes short multi-register foreground chains, but does not establish transaction boundaries; optional analyst-authored contracts can define a sequence and ISR interference. Only constant CBZ/CBNZ, common CMP/CMN/ADDS/SUBS flag conditions, and TST/TEQ zero/sign conditions with known supported operands are filtered; all other branch predicates remain unchecked. The analyzer also does not model interrupt priorities, enable state, RTOS tasks, DMA, or hardware evolution. It labels an external IRQ as blocked at a foreground instruction where PRIMASK or FAULTMASK is known set; that point snapshot does not establish whole-operation protection.
 - Current findings must be described as triage candidates, not demonstrated races or confirmed defects.
-- An authored synthetic firmware fixture, matching SVD, symbolized ELF, and stripped ELF are present. It includes destructive reads, masked/unmasked paths, W1C and ordinary assignment semantics, and a shifted-comparison branch with two constant MMIO stores. Their analysis output has not been verified in IDA; there is still no measured fixture matrix, screenshot/demo, release ZIP, official plugin listing, or contest submission.
+- An authored synthetic firmware fixture, matching SVD, symbolized ELF, and stripped ELF are present. It includes destructive reads, masked/unmasked paths, W1C and ordinary assignment semantics, byte-lane register access, and a shifted-comparison branch with two constant MMIO stores. Their analysis output has not been verified in IDA. The source fixture specification and non-IDA evaluation matrix exist; observed IDA results and screenshots do not.
 
 ### P0 — Prototype status
 
@@ -52,7 +52,9 @@ The 2026 contest deadline is November 30, 2026. As of November 21, only nine cal
 - [x] Add a shortest CFG path and candidate single-event insertion sketch to each finding. It is not a complete event schedule or protocol violation proof.
 - [x] Show the observed same-peripheral ISR MMIO prefix and its shortest recovered handler CFG path leading to the selected interrupt event. Branch feasibility and side effects between accesses remain unresolved.
 - [ ] Add full path-predicate-aware multi-context schedule search, validated transaction boundaries, and assumption-level triage. The contract-backed candidate timeline is a selected-gap sketch, not a full synchronized scheduler or protocol-violation proof.
-- [ ] Create the measured fixture matrix, screenshot/demo, release archive, and official plugin listing.
+- [x] Create the source fixture specification, non-IDA evaluation matrix, and project-metadata release archive; the archive passes HCLI 0.28.0 lint with no recommendations.
+- [ ] Run both firmware fixtures in IDA, record observed results and misses, and capture the actual dashboard.
+- [ ] Publish the validated archive as a GitHub Release, verify official plugin indexing, and submit the contest form.
 
 ### P1 — Strong technical differentiator
 
@@ -87,4 +89,4 @@ Before calling the plugin contest-ready:
 - Ensure README clearly distinguishes implemented features from roadmap items.
 - Publish the official plugin listing early enough for repository propagation, then submit the contest form before the deadline.
 
-These are proposed gates, not checks performed in this workspace. The prototype now includes the local SVD and protocol-contract workflows, CFG-based MMIO and mask recovery, interrupt setup evidence, candidate review, IDB verdict persistence, JSON export, and authored Cortex-M fixtures. The public GitHub source and HCLI-linted project-metadata archive are ready for review, but no IDA runtime validation, official plugin listing, or contest submission has been completed.
+Most of the planned contest-sized source implementation is complete, including local SVD and protocol-contract workflows, CFG-based MMIO and mask recovery, interrupt setup evidence, candidate review, IDB verdict persistence, JSON export, and authored Cortex-M fixtures. The public source, passing hosted checks, and HCLI-linted project-metadata archive are ready for host review. IDA runtime validation, an official plugin listing, and contest submission remain incomplete.
