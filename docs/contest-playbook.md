@@ -48,15 +48,15 @@ Each fixture needs an expected analysis tier, assumptions, and acceptable absten
 
 ## Submission release checklist
 
-The official contest page currently requires an official plugin-repository entry with a GitHub source link, a README with an overview, installation/use instructions, and preferred author credit, plus `ida-plugin.json`, followed by the contest form. HCLI documents ZIP packaging and `hcli plugin lint`. Build these before spending time on visual polish:
+The contest requires the plugin to be available from Hex-Rays' official plugin repository before completing the 2026 contest form. The current HCLI publication guide says the community indexer discovers public GitHub repositories with valid `ida-plugin.json` metadata and indexes their GitHub Releases automatically; the indexer runs daily. A manual request to add a repository is a fallback if it is not discovered, not the normal publication path. HCLI ZIP lint verifies archive structure and metadata but does not verify the plugin in IDA. Build and check these before release:
 
 1. Confirm the public repository exists, keep the submitter-provided author metadata in the manifest, and verify the MIT license.
 2. Pin supported IDA versions to those actually exercised, including the current latest version.
 3. Build the deterministic source package with `python tools/package_release.py --github-repository <url> --author <name> --author-email <email>` and validate the archive with `hcli plugin lint`.
 4. Install it into a clean supported IDA build, analyze both fixtures, record misses and environment versions, and capture the actual UI.
-5. Create a semantic version tag and GitHub release using the validated archive.
-6. Verify the plugin appears in the official repository after indexing.
-7. Submit the contest form only after the listing is public.
+5. Create a semantic version tag and GitHub release using the validated archive; attach the HCLI-linted ZIP to the release.
+6. Check the community index data and plugin search after the daily indexing run. If the release is valid but absent, confirm it is not on the ignored-URL list, then request inclusion in the indexer's known-repositories list.
+7. Submit the contest form only after the plugin is publicly available in the official repository. Keep the release, repository, and contest links with the observed fixture results.
 
 The contest deadline is November 30, 2026; as of November 21, publication lead time makes this an unusually tight release window. A credible limited plugin is stronger than a video claiming the full roadmap is implemented.
 
@@ -64,5 +64,7 @@ The contest deadline is November 30, 2026; as of November 21, publication lead t
 
 - [IDA Plugin Contest requirements and examples](https://hex-rays.com/plugin-contest)
 - [HCLI packaging format and manifest requirements](https://hcli.docs.hex-rays.com/reference/plugin-packaging-and-format/)
+- [HCLI guide to publishing an existing plugin](https://hcli.docs.hex-rays.com/reference/packaging-your-existing-plugin/)
+- [HCLI plugin-repository architecture and index](https://hcli.docs.hex-rays.com/reference/plugin-repository-architecture/)
 - [PASan research](https://www.usenix.org/system/files/sec21fall-kim.pdf)
 - [IEmu research](https://www.sciencedirect.com/science/article/pii/S1383762124001747)
