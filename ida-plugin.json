@@ -1,0 +1,31 @@
+{
+  "$schema": "https://hcli.docs.hex-rays.com/schemas/ida-plugin.json",
+  "IDAMetadataDescriptorVersion": 1,
+  "plugin": {
+    "name": "irqscope",
+    "entryPoint": "irqscope_plugin.py",
+    "version": "0.1.0",
+    "idaVersions": ["9.5"],
+    "description": "Firmware workbench for importing CMSIS-SVD, reviewing Cortex-M vector tables, mapping MMIO accesses, and triaging cross-context peripheral hazards.",
+    "license": "MIT",
+    "logoPath": "assets/irqscope-logo.svg",
+    "categories": ["decompilation", "ui-ux-and-visualization"],
+    "requiresPython": ">=3.11",
+    "urls": {
+      "repository": "https://github.com/shobhit1kapoor/irqscope"
+    },
+    "authors": [{
+      "name": "shobhit kapoor",
+      "email": "shobhit1kapoor@gmail.com"
+    }],
+    "keywords": [
+      "firmware",
+      "cortex-m",
+      "cmsis-svd",
+      "mmio",
+      "interrupts",
+      "peripheral-analysis",
+      "concurrency"
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "format": "irqscope-protocol-v1",
+  "name": "Synthetic UART transaction model",
+  "transactions": [
+    {
+      "name": "poll-submit-wait-read",
+      "peripheral": "SIMUART",
+      "interference_mode": "sequence",
+      "description": "A foreground transfer polls readiness, submits one word, waits for completion, then consumes the result.",
+      "steps": [
+        { "register": "STATUS", "operation": "read" },
+        { "register": "DATA", "operation": "write" },
+        { "register": "CONTROL", "operation": "write" },
+        { "register": "STATUS", "operation": "read" },
+        { "register": "DATA", "operation": "read" }
+      ],
+      "interference": [
+        { "register": "STATUS", "operation": "read", "reason": "The SVD marks this read as clearing the synthetic READY event." },
+        { "register": "DATA", "operation": "read", "reason": "The handler consumes the pending data word before the foreground result read." },
+        { "register": "CONTROL", "operation": "write", "reason": "The handler changes the START control bit during the foreground transaction." }
+      ]
+    },
+    {
+      "name": "configure-and-acknowledge",
+      "peripheral": "SIMUART",
+      "interference_mode": "any",
+      "description": "Match exact command values in a two-event foreground transaction and distinguish the timer configuration overwrite from a disjoint W1C acknowledgement.",
+      "steps": [
+        { "register": "CONFIG", "operation": "write", "field": "MODE", "enumeration": "FAST" },
+        { "register": "EVENTS", "operation": "write", "value": 1 }
+      ],
+      "interference": [
+        { "register": "CONFIG", "operation": "write", "value": 1, "reason": "The timer handler replaces the ordinary configuration word with a different constant." },
+        { "register": "EVENTS", "operation": "write", "value": 2, "reason": "The USART handler clears a disjoint W1C event bit." }
+      ]
+    }
+  ]
+}

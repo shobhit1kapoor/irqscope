@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<device schemaVersion="1.3">
+  <name>IRQScopeAlternatePeripheralFixture</name>
+  <version>0.1</version>
+  <description>Small fixture demonstrating explicitly related peripheral views of one address block.</description>
+  <addressUnitBits>8</addressUnitBits>
+  <width>32</width>
+  <size>32</size>
+  <access>read-write</access>
+  <peripherals>
+    <peripheral>
+      <name>PORTA</name>
+      <description>Digital GPIO view.</description>
+      <baseAddress>0x40020000</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>4</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <registers>
+        <register>
+          <name>DATA</name>
+          <description>Digital pin state.</description>
+          <addressOffset>0</addressOffset>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>VALUE</name>
+              <bitOffset>0</bitOffset>
+              <bitWidth>16</bitWidth>
+              <access>read-write</access>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>DATA_ANALOG</name>
+          <description>Alternate register interpretation when analog mode is selected.</description>
+          <alternateRegister>DATA</alternateRegister>
+          <addressOffset>0</addressOffset>
+          <access>read-only</access>
+          <fields>
+            <field>
+              <name>SAMPLE</name>
+              <bitOffset>0</bitOffset>
+              <bitWidth>16</bitWidth>
+              <access>read-only</access>
+            </field>
+          </fields>
+        </register>
+        <cluster>
+          <name>PIN</name>
+          <description>Digital-mode pin configuration registers.</description>
+          <addressOffset>0x10</addressOffset>
+          <register>
+            <name>CONTROL</name>
+            <addressOffset>0</addressOffset>
+            <access>read-write</access>
+          </register>
+        </cluster>
+        <cluster>
+          <name>PIN_ANALOG</name>
+          <description>Alternate analog-mode pin configuration layout.</description>
+          <alternateCluster>PIN</alternateCluster>
+          <addressOffset>0x10</addressOffset>
+          <register>
+            <name>SAMPLE_CONTROL</name>
+            <addressOffset>0</addressOffset>
+            <access>read-only</access>
+          </register>
+        </cluster>
+      </registers>
+    </peripheral>
+    <peripheral>
+      <name>PORTA_ANALOG</name>
+      <description>Alternate analog sampling view of the same address block.</description>
+      <alternatePeripheral>PORTA</alternatePeripheral>
+      <baseAddress>0x40020000</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>4</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <registers>
+        <register>
+          <name>SAMPLE</name>
+          <description>Analog sample value when the pin is in analog mode.</description>
+          <addressOffset>0</addressOffset>
+          <access>read-only</access>
+          <fields>
+            <field>
+              <name>VALUE</name>
+              <bitOffset>0</bitOffset>
+              <bitWidth>16</bitWidth>
+              <access>read-only</access>
+            </field>
+          </fields>
+        </register>
+      </registers>
+    </peripheral>
+  </peripherals>
+</device>

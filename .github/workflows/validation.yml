@@ -1,0 +1,59 @@
+name: Validate IRQScope
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Python
+        # v7.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.11"
+
+      - name: Install demo build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes wget gnupg lsb-release
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash /tmp/llvm.sh 22
+          sudo apt-get install --yes clang-22 lld-22 llvm-22
+
+      - name: Compile Python sources
+        run: python -m compileall -q irqscope irqscope_plugin.py tests tools
+
+      - name: Run unit suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify demo firmware artifacts
+        run: >-
+          python tools/build_demo.py --check
+          --clang clang-22
+          --llvm-strip llvm-strip-22
+          --llvm-objdump llvm-objdump-22
+
+      - name: Build metadata-complete sample archive
+        run: >-
+          python tools/package_release.py
+          --github-repository https://github.com/example/irqscope
+          --author "IRQScope CI"
+          --author-email irqscope-ci@example.invalid
+          --output-dir dist
+
+      - name: Install HCLI
+        run: curl -LsSf https://hcli.docs.hex-rays.com/install | sh -s -- --version 0.28.0
+
+      - name: Lint package with HCLI
+        run: hcli plugin lint dist/irqscope-0.1.0.zip
