@@ -119,7 +119,7 @@ def mine_transaction_proposals(
     support = defaultdict(set)
     for function_ea, peripheral, chain, _ in raw_candidates:
         support[(peripheral, _signature(chain))].add(function_ea)
-    function_names = {}
+    function_names: dict[int, str] = {}
     for access in accesses:
         function_names.setdefault(access.function_ea, access.function_name)
 

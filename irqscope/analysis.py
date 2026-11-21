@@ -1,10 +1,10 @@
 """Conservative finding rules over recovered MMIO evidence."""
 
-from collections import deque
+from collections import defaultdict, deque
 from typing import List, Mapping, Optional, Sequence, Tuple
 
 from .model import (
-    AnalysisCancelled, CFGBlock, Finding, InterleavingWitness, MMIOAccess,
+    AnalysisCancelled, CFGBlock, Finding, InterruptConfigEvent, InterleavingWitness, MMIOAccess,
     WriteEffectRelation,
 )
 from .interrupts import assess_basepri_priority
@@ -21,35 +21,35 @@ def _shortest_block_path(start: MMIOAccess, target: MMIOAccess,
             return (start_block,)
         # A repeated instruction EA is a distinct dynamic event only when a
         # recovered CFG cycle returns to its block.
-        queue = deque()
-        visited = set()
+        cycle_queue: deque[tuple[int, tuple[int, ...]]] = deque()
+        cycle_visited: set[int] = set()
         for successor in cfg[start_block].successors:
-            path = (start_block, successor)
+            path: tuple[int, ...] = (start_block, successor)
             if successor == start_block:
                 return path
-            if successor in cfg and successor not in visited:
-                visited.add(successor)
-                queue.append((successor, path))
-        while queue:
-            current, path = queue.popleft()
+            if successor in cfg and successor not in cycle_visited:
+                cycle_visited.add(successor)
+                cycle_queue.append((successor, path))
+        while cycle_queue:
+            current, path = cycle_queue.popleft()
             for successor in cfg[current].successors:
                 if successor == start_block:
                     return path + (start_block,)
-                if successor in cfg and successor not in visited:
-                    visited.add(successor)
-                    queue.append((successor, path + (successor,)))
+                if successor in cfg and successor not in cycle_visited:
+                    cycle_visited.add(successor)
+                    cycle_queue.append((successor, path + (successor,)))
         return None
 
-    queue = deque([(start_block, (start_block,))])
-    visited = {start_block}
-    while queue:
-        current, path = queue.popleft()
+    route_queue: deque[tuple[int, tuple[int, ...]]] = deque([(start_block, (start_block,))])
+    route_visited: set[int] = {start_block}
+    while route_queue:
+        current, path = route_queue.popleft()
         for successor in cfg[current].successors:
             if successor == target_block:
                 return path + (successor,)
-            if successor in cfg and successor not in visited:
-                visited.add(successor)
-                queue.append((successor, path + (successor,)))
+            if successor in cfg and successor not in route_visited:
+                route_visited.add(successor)
+                route_queue.append((successor, path + (successor,)))
     return None
 
 
@@ -61,8 +61,8 @@ def _shortest_entry_path(target: MMIOAccess,
     entry = min(cfg)
     if entry == target_block:
         return (entry,)
-    queue = deque([(entry, (entry,))])
-    visited = {entry}
+    queue: deque[tuple[int, tuple[int, ...]]] = deque([(entry, (entry,))])
+    visited: set[int] = {entry}
     while queue:
         current, path = queue.popleft()
         for successor in cfg[current].successors:
@@ -98,16 +98,16 @@ def _build_interleaving_witness(foreground: MMIOAccess, interrupt: MMIOAccess,
     interrupt_cfg = cfg_by_function.get(interrupt.function_ea, {})
     interrupt_block_path = _shortest_entry_path(interrupt, interrupt_cfg)
     interrupt_block_rank = {ea: index for index, ea in enumerate(interrupt_block_path)}
-    interrupt_prefix = tuple(sorted(
-        (
-            access for access in accesses
-            if access.function_ea == interrupt.function_ea
-            and access.register.peripheral == interrupt.register.peripheral
-            and access.block_start_ea in interrupt_block_rank
-            and (access.block_start_ea != interrupt.block_start_ea or access.ea < interrupt.ea)
-        ),
-        key=lambda access: (interrupt_block_rank[access.block_start_ea], access.ea),
-    ))
+    ranked_prefix = []
+    for access in accesses:
+        block_start = access.block_start_ea
+        if (access.function_ea == interrupt.function_ea
+                and access.register.peripheral == interrupt.register.peripheral
+                and block_start is not None
+                and block_start in interrupt_block_rank
+                and (block_start != interrupt.block_start_ea or access.ea < interrupt.ea)):
+            ranked_prefix.append((interrupt_block_rank[block_start], access.ea, access))
+    interrupt_prefix = tuple(item[2] for item in sorted(ranked_prefix))
 
     if preemption_state == "blocked-at-foreground-access":
         status = "blocked-at-observed-insertion-point"
@@ -300,13 +300,13 @@ def build_candidate_findings(accesses: Sequence[MMIOAccess],
     per-access mask snapshots but does not establish complete transaction
     coverage, NVIC enable/priority state, or path feasibility.
     """
-    grouped = {}
+    grouped: dict[int, list[MMIOAccess]] = defaultdict(list)
     cfg_by_function = cfg_by_function or {}
-    configuration_by_irq = {}
+    configuration_by_irq: dict[int, list[InterruptConfigEvent]] = defaultdict(list)
     for event in interrupt_configuration:
         configuration_by_irq.setdefault(event.irq_number, []).append(event)
     for access in accesses:
-        grouped.setdefault(access.register.address, []).append(access)
+        grouped[access.register.address].append(access)
 
     findings = []
     seen = set()

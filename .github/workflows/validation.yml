@@ -34,11 +34,14 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q irqscope irqscope_plugin.py tests tools
 
-      - name: Install Ruff
-        run: python -m pip install --disable-pip-version-check "ruff==0.15.10"
+      - name: Install Python quality tools
+        run: python -m pip install --disable-pip-version-check "ruff==0.15.10" "mypy==1.20.2"
 
       - name: Lint Python sources
         run: ruff check irqscope tools tests irqscope_plugin.py
+
+      - name: Check Python types
+        run: mypy --ignore-missing-imports irqscope
 
       - name: Run unit suite
         run: python -m unittest discover -s tests -v

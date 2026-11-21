@@ -135,7 +135,7 @@ def _validate_tree_complexity(root: ET.Element) -> None:
 def _resolve_inheritance(nodes: Dict[str, ET.Element], scopes: Dict[str, str], label: str) -> None:
     """Resolve one named SVD scope, preserving inherited children and overrides."""
     resolved: Dict[str, ET.Element] = {}
-    active = set()
+    active: set[str] = set()
 
     def resolve(key: str) -> ET.Element:
         if key in resolved:
@@ -222,10 +222,10 @@ def _resolve_register_tree(peripherals: List[ET.Element]) -> None:
 def _resolve_enumerated_value_sets(fields: Dict[str, ET.Element]) -> None:
     """Resolve named enumeratedValues references after field inheritance."""
     nodes = {}
-    names = {}
+    names: Dict[str, List[str]] = {}
     scopes = {}
     for field_key, field_node in fields.items():
-        ordinal_by_usage = {}
+        ordinal_by_usage: Dict[str, int] = {}
         for enum_node in field_node:
             if _local(enum_node.tag) != "enumeratedValues":
                 continue
@@ -241,8 +241,8 @@ def _resolve_enumerated_value_sets(fields: Dict[str, ET.Element]) -> None:
             if name:
                 names.setdefault(name, []).append(key)
 
-    resolved = {}
-    active = set()
+    resolved: Dict[str, ET.Element] = {}
+    active: set[str] = set()
     resolved_value_count = [0]
 
     def resolve_key(key: str) -> ET.Element:
@@ -367,6 +367,9 @@ def _expand_peripheral_arrays(peripherals: List[ET.Element]) -> List[ET.Element]
         for index, label in enumerate(labels):
             clone = copy.deepcopy(node)
             clone_name = _child(clone, "name")
+            clone_base = _child(clone, "baseAddress")
+            if clone_name is None or clone_base is None:
+                raise SVDParseError("Peripheral array clone is missing name or baseAddress")
             clone_name.text = (
                 _text(clone_name).replace("%s", label)
                 if "%s" in _text(clone_name)
@@ -375,7 +378,7 @@ def _expand_peripheral_arrays(peripherals: List[ET.Element]) -> List[ET.Element]
             alternate_node = _child(clone, "alternatePeripheral")
             if alternate_node is not None and "%s" in _text(alternate_node):
                 alternate_node.text = _text(alternate_node).replace("%s", label)
-            _child(clone, "baseAddress").text = f"0x{base + index * increment:X}"
+            clone_base.text = f"0x{base + index * increment:X}"
             for dimension_tag in ("dim", "dimIncrement", "dimIndex", "dimArrayIndex"):
                 dimension_node = _child(clone, dimension_tag)
                 if dimension_node is not None:
@@ -427,7 +430,7 @@ def _parse_enumerated_value(node: ET.Element, width: int) -> EnumeratedValue:
 
 def _parse_enumerated_values(field_node: ET.Element, width: int):
     parsed = []
-    usages = set()
+    usages: set[str] = set()
     for node in field_node:
         if _local(node.tag) != "enumeratedValues":
             continue
@@ -604,8 +607,8 @@ def check_write_constraints(register: Register, value: Optional[int], access_wid
         checks.append(WriteConstraintCheck("register", constraint.kind, status, value, detail))
 
     for field in register.fields:
-        constraint = field.write_constraint
-        if constraint is None:
+        field_constraint = field.write_constraint
+        if field_constraint is None:
             continue
         if (field.bit_offset < 0 or field.bit_width <= 0
               or field.bit_offset + field.bit_width > register.size_bits):
@@ -620,25 +623,25 @@ def check_write_constraints(register: Register, value: Optional[int], access_wid
             status, detail = "unknown", "store covers only part of this constrained field"
         elif value is None:
             status, detail = "unknown", "store value was not recovered"
-        elif constraint.kind == "range":
-            if constraint.minimum is None or constraint.maximum is None:
+        elif field_constraint.kind == "range":
+            if field_constraint.minimum is None or field_constraint.maximum is None:
                 status, detail = "unknown", "range constraint is missing minimum or maximum"
             else:
                 field_value = (value >> (field.bit_offset - lane_start)) & ((1 << field.bit_width) - 1)
-                status = "satisfied" if constraint.minimum <= field_value <= constraint.maximum else "violated"
+                status = "satisfied" if field_constraint.minimum <= field_value <= field_constraint.maximum else "violated"
                 detail = (
-                    f"field value 0x{field_value:X} is within 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
+                    f"field value 0x{field_value:X} is within 0x{field_constraint.minimum:X}..0x{field_constraint.maximum:X}"
                     if status == "satisfied" else
-                    f"field value 0x{field_value:X} is outside 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
+                    f"field value 0x{field_value:X} is outside 0x{field_constraint.minimum:X}..0x{field_constraint.maximum:X}"
                 )
-        elif constraint.kind == "enumerated-values-only":
+        elif field_constraint.kind == "enumerated-values-only":
             field_value = (value >> (field.bit_offset - lane_start)) & ((1 << field.bit_width) - 1)
             status, detail = _enumerated_write_check(field, field_value)
-        elif constraint.kind == "write-as-read":
+        elif field_constraint.kind == "write-as-read":
             status, detail = "unknown", "checking write-as-read requires the prior runtime field value"
         else:
             status, detail = "unknown", "constraint kind is not supported by the checker"
-        checks.append(WriteConstraintCheck(field.name, constraint.kind, status, value, detail))
+        checks.append(WriteConstraintCheck(field.name, field_constraint.kind, status, value, detail))
     return tuple(checks)
 
 
@@ -982,7 +985,7 @@ def parse_svd(path: str) -> DeviceModel:
         alternate_peripherals[alternate_name] = primary_name
     register_groups: Dict[int, List[Register]] = {}
     resolved_peripherals: Dict[str, ET.Element] = {}
-    resolving = set()
+    resolving: set[str] = set()
 
     def resolve_peripheral(node: ET.Element) -> ET.Element:
         pname = _text(_child(node, "name"), "unnamed")
@@ -1016,9 +1019,9 @@ def parse_svd(path: str) -> DeviceModel:
     expanded_count = [0]
     expanded_field_count = [0]
     expanded_enumerated_count = [0]
-    alternate_registers = {}
-    alternate_clusters = {}
-    cluster_bases = {}
+    alternate_registers: Dict[str, str] = {}
+    alternate_clusters: Dict[str, str] = {}
+    cluster_bases: Dict[str, int] = {}
     for node in peripheral_nodes:
         pname = _text(_child(node, "name"), "unnamed")
         base = _int(_text(_child(node, "baseAddress")), f"{pname}.baseAddress")

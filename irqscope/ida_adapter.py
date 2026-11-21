@@ -915,7 +915,7 @@ def scan_mmio_with_cfg(model: DeviceModel, progress=None) -> Tuple[List[MMIOAcce
     found = {}
     cfg_by_function: Dict[int, Dict[int, CFGBlock]] = {}
     interrupt_config = {}
-    scan_warnings = []
+    scan_warnings: List[str] = []
     scan_warning_count = 0
     functions = list(idautils.Functions())
     nvic_summaries = _nvic_helper_summaries(progress=progress)

@@ -7,7 +7,9 @@ import json
 from typing import Mapping, Optional, Sequence, Tuple
 
 from .analysis import _build_interleaving_witness, _shortest_block_path
-from .model import AnalysisCancelled, CFGBlock, DeviceModel, Finding, MMIOAccess
+from .model import (
+    AnalysisCancelled, CFGBlock, DeviceModel, Finding, InterruptConfigEvent, MMIOAccess,
+)
 
 
 PROTOCOL_FORMAT = "irqscope-protocol-v1"
@@ -29,7 +31,7 @@ def build_protocol_draft(proposal, interrupt_accesses: Sequence[MMIOAccess]):
         raise ValueError("A protocol draft requires at least two foreground events")
     if len(proposal.events) > MAX_EVENTS_PER_TRANSACTION:
         raise ValueError("The selected sequence exceeds the protocol step limit")
-    interference = []
+    interference: list[dict[str, object]] = []
     seen = set()
     ordered_accesses = sorted(interrupt_accesses, key=lambda item: (item.ea, item.function_ea))
     interference_truncated = False
@@ -45,7 +47,7 @@ def build_protocol_draft(proposal, interrupt_accesses: Sequence[MMIOAccess]):
         if pattern in seen:
             continue
         seen.add(pattern)
-        interference_event = {
+        interference_event: dict[str, object] = {
             "register": access.register.display_name,
             "operation": access.operation,
             "reason": (
@@ -330,7 +332,7 @@ def _transaction_sequences(events: Sequence[MMIOAccess], transaction: Transactio
                for event in transaction.steps]
     if any(not choices for choices in by_step):
         return [], False
-    sequences = []
+    sequences: list[tuple[Tuple[MMIOAccess, ...], Tuple[Tuple[int, ...], ...]]] = []
     truncated = [False]
     explored = [0]
 
@@ -367,9 +369,9 @@ def build_protocol_findings(protocol: ProtocolModel, device: DeviceModel,
                             cfg_by_function: Mapping[int, Mapping[int, CFGBlock]],
                             interrupt_configuration=(), progress=None) -> ProtocolAnalysisResult:
     """Find CFG-reachable declared transactions with matching ISR interference."""
-    unique = {}
+    unique: dict[tuple[object, ...], Finding] = {}
     truncation_reasons = []
-    configuration_by_irq = {}
+    configuration_by_irq: dict[int, list[InterruptConfigEvent]] = {}
     for event in interrupt_configuration:
         configuration_by_irq.setdefault(event.irq_number, []).append(event)
     accesses_by_function_peripheral = defaultdict(list)
@@ -485,7 +487,7 @@ def build_protocol_findings(protocol: ProtocolModel, device: DeviceModel,
                             + ", ".join(enum_constraints) + "."
                         )
                     rationale = f" {rationale}" if rationale else ""
-                    assumptions = (
+                    assumptions: tuple[str, ...] = (
                         f"Transaction contract {protocol.name!r} is analyst-authored and may not capture all device behavior.",
                         f"The foreground sequence {transaction.name!r} is CFG-reachable in recovered blocks; branch predicates are not checked.",
                         "The candidate insertion gap is selected using the mask snapshot at its preceding observed access; mask changes inside the gap are not proven.",
@@ -525,10 +527,10 @@ def build_protocol_findings(protocol: ProtocolModel, device: DeviceModel,
                             key=lambda event: event.ea,
                         )),
                     )
-                    key = (finding.protocol_name, finding.first.function_ea, finding.first.ea,
-                           finding.second.function_ea, finding.second.ea,
-                           tuple(item.ea for item in finding.protocol_interrupt_events))
-                    unique.setdefault(key, finding)
+                    finding_key = (finding.protocol_name, finding.first.function_ea, finding.first.ea,
+                                   finding.second.function_ea, finding.second.ea,
+                                   tuple(item.ea for item in finding.protocol_interrupt_events))
+                    unique.setdefault(finding_key, finding)
                     if len(unique) >= MAX_PROTOCOL_FINDINGS:
                         truncation_reasons.append(
                             f"Protocol analysis reached the {MAX_PROTOCOL_FINDINGS}-finding output cap; additional candidates may be omitted."

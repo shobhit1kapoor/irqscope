@@ -99,7 +99,7 @@ class DeviceModel:
         return self.register_aliases.get(address, (primary,))
 
     def all_registers(self) -> List[Register]:
-        result = []
+        result: List[Register] = []
         for address, register in self.registers.items():
             result.extend(self.register_aliases.get(address, (register,)))
         return result
