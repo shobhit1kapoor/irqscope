@@ -20,6 +20,7 @@ from .model import (
     DeviceModel,
     InterruptConfigEvent,
     MMIOAccess,
+    Register,
     VectorEntry,
     VectorTableCandidate,
 )
@@ -361,11 +362,12 @@ class _RegisterAccessResolver:
         self.bases = sorted(model.registers)
         self.address_unit_bits = model.address_unit_bits
         self.maximum_register_bytes = max(
-            ((register.size_bits + 7) // 8 for register in model.all_registers()),
+            ((register.size_bits + 7) // 8
+             for base in self.bases for register in model.get_registers(base)),
             default=0,
         )
 
-    def resolve(self, address: int, access_width_bits: Optional[int]):
+    def resolve(self, address: int, access_width_bits: Optional[int]) -> Tuple[Register, ...]:
         exact = self.model.get_registers(address)
         if exact:
             return exact
