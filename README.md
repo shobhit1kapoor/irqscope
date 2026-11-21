@@ -1,5 +1,7 @@
 # IRQScope
 
+[![Validate IRQScope](https://github.com/shobhit1kapoor/irqscope/actions/workflows/validation.yml/badge.svg)](https://github.com/shobhit1kapoor/irqscope/actions/workflows/validation.yml)
+
 ![IRQScope — interrupt and peripheral analysis](assets/irqscope-logo.svg)
 
 See [CHANGELOG.md](CHANGELOG.md) for the current prototype release notes.
@@ -81,7 +83,7 @@ The release must label heuristic operation boundaries and unresolved control flo
 
 The manifest targets IDA 9.5, the release announced by Hex-Rays in October 2026 ([release announcement](https://hex-rays.com/blog/ida-9.5-release)). This host has not been exercised yet, so compatibility remains unverified. Use an edition with ARM disassembly and IDAPython, such as IDA Home with ARM selected, IDA Pro, or an eligible IDA Classroom installation. IDA Free is x86-only and does not include IDAPython ([edition details](https://hex-rays.com/ida-free)). For a local source install, copy `irqscope_plugin.py` and the `irqscope` package directory into IDA's user `plugins` directory, then restart IDA. Open **Edit → Plugins → IRQScope: Open Analysis Dashboard**. Use **Import SVD**, optionally import a protocol contract such as [`demo/uart-protocol.json`](demo/uart-protocol.json), review **Vectors** and confirm whether IRQScope should create function boundaries for unmapped handler entries, then choose **Analyze**. Use the dashboard tabs and linked candidate evidence to inspect results. Export is available from the dashboard or **IRQScope: Export evidence…**. See the [host validation checklist](docs/ida-validation.md) for the demo workflow and evidence record.
 
-The manifest contains the submitter-provided author name, email, and selected GitHub URL. The target repository is being created, and the plugin has not yet been exercised inside IDA; this usage describes the intended flow, not verified runtime behavior.
+The manifest contains the submitter-provided author name, email, and selected GitHub URL. The public source repository is available at [github.com/shobhit1kapoor/irqscope](https://github.com/shobhit1kapoor/irqscope). The plugin has not yet been exercised inside IDA; this usage describes the intended flow, not verified runtime behavior.
 
 To build a deterministic source archive after selecting the repository URL, run `python tools/package_release.py --github-repository https://github.com/<owner>/<repo> --author "shobhit kapoor" --author-email "shobhit1kapoor@gmail.com"`. The command writes `dist/irqscope-<version>.zip` and a SHA-256 sidecar without changing the working manifest. Run `hcli plugin lint dist/irqscope-<version>.zip` and install the resulting package into a clean IDA build before publishing.
 
