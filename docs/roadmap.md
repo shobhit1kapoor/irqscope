@@ -82,9 +82,9 @@ Before calling the plugin contest-ready:
 - Confirm the plugin loads without Hex-Rays installed; verify microcode features degrade gracefully.
 - Run the full fixture corpus and publish expected-versus-observed results.
 - Verify IDB save/reopen preserves manual models and verdicts.
-- [x] Validate a generated archive with the official HCLI tooling. A temporary sample-metadata archive passed HCLI 0.28.0 lint with no recommendations.
+- [x] Build and validate the project-metadata release archive with HCLI 0.28.0; lint returns no recommendations.
 - [ ] Install the package in a clean IDA 9.5 environment with ARM disassembly and IDAPython.
 - Ensure README clearly distinguishes implemented features from roadmap items.
 - Publish the official plugin listing early enough for repository propagation, then submit the contest form before the deadline.
 
-These are proposed gates, not checks performed in this workspace. The prototype now includes the local SVD and protocol-contract workflows, CFG-based MMIO and mask recovery, interrupt setup evidence, candidate review, IDB verdict persistence, JSON export, and authored Cortex-M fixtures. The current source has passed HCLI lint as a temporary archive with sample metadata, but no IDA runtime validation, project-identity release archive, or official publication has been completed.
+These are proposed gates, not checks performed in this workspace. The prototype now includes the local SVD and protocol-contract workflows, CFG-based MMIO and mask recovery, interrupt setup evidence, candidate review, IDB verdict persistence, JSON export, and authored Cortex-M fixtures. The public GitHub source and HCLI-linted project-metadata archive are ready for review, but no IDA runtime validation, official plugin listing, or contest submission has been completed.
