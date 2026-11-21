@@ -59,7 +59,13 @@ jobs:
           --output-dir dist
 
       - name: Install HCLI
-        run: curl -LsSf https://hcli.docs.hex-rays.com/install | sh -s -- --version 0.28.0
+        run: |
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output "$RUNNER_TEMP/hcli" \
+            https://github.com/HexRaysSA/ida-hcli/releases/download/v0.28.0/hcli-linux-x86_64-0.28.0
+          echo "d03b8da9c0de6932cdfcdb40a971fee81c28098a881f640ecec26ddb066172c4  $RUNNER_TEMP/hcli" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/hcli"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Lint package with HCLI
         run: hcli plugin lint dist/irqscope-0.1.0.zip
