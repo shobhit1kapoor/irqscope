@@ -50,12 +50,12 @@ jobs:
           --llvm-strip llvm-strip-22
           --llvm-objdump llvm-objdump-22
 
-      - name: Build metadata-complete sample archive
+      - name: Build release archive
         run: >-
           python tools/package_release.py
-          --github-repository https://github.com/example/irqscope
-          --author "IRQScope CI"
-          --author-email irqscope-ci@example.invalid
+          --github-repository https://github.com/shobhit1kapoor/irqscope
+          --author "shobhit kapoor"
+          --author-email shobhit1kapoor@gmail.com
           --output-dir dist
 
       - name: Install HCLI
