@@ -60,5 +60,7 @@ Runtime behavior and presentation have not yet been verified in an IDA installat
 - Match the dockable dashboard to IDA's host light/dark palette, with a readable light variant and a dark fallback when palette detection is unavailable.
 - Add a read-only GitHub Actions validation workflow for Python tests, deterministic firmware checks, sample-metadata packaging, and HCLI archive lint.
 - Assemble matched foreground and ordered ISR contract events into a conditional synchronized candidate timeline with CFG links, an explicit insertion gap, and limitations; bump the evidence schema to v25.
+- Preserve each recovered effective MMIO address in findings, dashboard rows, and evidence exports; map byte-addressed partial accesses to one unambiguous containing SVD register and abstain on overlapping or crossing ranges.
+- Compare constrained partial protocol writes in register-relative bit lanes using fixed SVD endianness and byte address units; abstain when the lane cannot be established.
 
 The current source tree has focused unit coverage for these additions, but none of the new behavior has been exercised inside IDA.
