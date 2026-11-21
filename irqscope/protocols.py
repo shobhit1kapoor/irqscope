@@ -306,7 +306,9 @@ def parse_protocol(path: str, device: DeviceModel) -> ProtocolModel:
     return ProtocolModel(name.strip(), path, hashlib.sha256(raw).hexdigest(), tuple(parsed))
 
 
-def _matches(access: MMIOAccess, event: ProtocolEvent) -> bool:
+def _matches(access: MMIOAccess, event: ProtocolEvent,
+             endianness: str = "unknown",
+             address_unit_bits: Optional[int] = 8) -> bool:
     if access.operation != event.operation:
         return False
     registers = (access.register,) + tuple(access.register_aliases)
@@ -320,15 +322,43 @@ def _matches(access: MMIOAccess, event: ProtocolEvent) -> bool:
         return True
     if access.value is None:
         return False
-    mask = event.value_mask or ((1 << matching_register.size_bits) - 1)
-    if mask & ~((1 << access.width_bits) - 1):
+    register_width = matching_register.size_bits
+    if register_width <= 0 or access.width_bits <= 0 or access.width_bits > register_width:
         return False
-    return (access.value & mask) == (event.value & mask)
+    register_mask = (1 << register_width) - 1
+    selected_mask = event.value_mask if event.value_mask is not None else register_mask
+    if access.width_bits == register_width:
+        if (access.access_address is not None
+                and access.access_address != matching_register.address):
+            return False
+        lane_start = 0
+    else:
+        if (access.access_address is None or address_unit_bits != 8
+                or endianness not in {"little", "big"}
+                or register_width % 8 != 0 or access.width_bits % 8 != 0):
+            return False
+        byte_offset = access.access_address - matching_register.address
+        if (byte_offset < 0
+                or byte_offset * 8 + access.width_bits > register_width):
+            return False
+        if endianness == "little":
+            lane_start = byte_offset * 8
+        else:
+            lane_start = register_width - (byte_offset * 8 + access.width_bits)
+    lane_mask = ((1 << access.width_bits) - 1) << lane_start
+    if selected_mask & ~lane_mask:
+        return False
+    register_value = (access.value & ((1 << access.width_bits) - 1)) << lane_start
+    return (register_value & selected_mask) == (event.value & selected_mask)
 
 
 def _transaction_sequences(events: Sequence[MMIOAccess], transaction: TransactionProtocol,
-                           cfg: Mapping[int, CFGBlock], progress=None):
-    by_step = [[access for access in events if _matches(access, event)]
+                           cfg: Mapping[int, CFGBlock], progress=None,
+                           endianness: str = "unknown",
+                           address_unit_bits: Optional[int] = 8):
+    by_step = [[access for access in events if _matches(
+        access, event, endianness, address_unit_bits
+    )]
                for event in transaction.steps]
     if any(not choices for choices in by_step):
         return [], False
@@ -400,7 +430,8 @@ def build_protocol_findings(protocol: ProtocolModel, device: DeviceModel,
                 (function_ea, transaction.peripheral), []
             )
             sequences, sequence_search_truncated = _transaction_sequences(
-                function_events, transaction, cfg_by_function.get(function_ea, {}), progress
+                function_events, transaction, cfg_by_function.get(function_ea, {}), progress,
+                device.endianness, device.address_unit_bits,
             )
             if sequence_search_truncated:
                 truncation_reasons.append(
@@ -423,6 +454,7 @@ def build_protocol_findings(protocol: ProtocolModel, device: DeviceModel,
                     chains, truncated = _transaction_sequences(
                         handler_events, interrupt_transaction,
                         cfg_by_function.get(handler_ea, {}), progress,
+                        device.endianness, device.address_unit_bits,
                     )
                     if truncated:
                         truncation_reasons.append(
@@ -432,7 +464,9 @@ def build_protocol_findings(protocol: ProtocolModel, device: DeviceModel,
                 else:
                     interrupt_chains.extend(
                         ((access,), ()) for access in handler_events
-                        if any(_matches(access, event) for event in transaction.interference)
+                        if any(_matches(
+                            access, event, device.endianness, device.address_unit_bits
+                        ) for event in transaction.interference)
                     )
             matched_pairs = 0
             for chain, paths in sequences:
@@ -470,7 +504,10 @@ def build_protocol_findings(protocol: ProtocolModel, device: DeviceModel,
                     matched_events = (
                         transaction.interference if transaction.interference_mode == "sequence"
                         else tuple(event for event in transaction.interference
-                                   if _matches(interrupt, event))
+                                   if _matches(
+                                       interrupt, event, device.endianness,
+                                       device.address_unit_bits,
+                                   ))
                     )
                     rationale = " ".join(
                         f"Declared interference: {event.reason}"

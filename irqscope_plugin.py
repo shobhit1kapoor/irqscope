@@ -523,10 +523,12 @@ def _show_accesses():
                      ) or "—",
                      ", ".join(alias.display_name for alias in access.register_aliases) or "—",
                      f"0x{access.register.address:08X}",
+                      f"0x{access.access_address:08X}" if access.access_address is not None else "—",
                      access.evidence, masks))
     show_rows("IRQScope — MMIO Access Index", [
         ["Instruction", 14], ["Function", 28], ["Op", 8], ["Register", 26],
-        ["Value", 14], ["SVD write checks", 42], ["SVD aliases", 28], ["Address", 14],
+        ["Value", 14], ["SVD write checks", 42], ["SVD aliases", 28], ["Register address", 14],
+        ["MMIO address", 14],
         ["Address evidence", 26], ["Mask state", 22]
     ], rows, on_select=lambda row: _jump(_results.accesses[row].ea))
 
@@ -536,6 +538,7 @@ def _json_access(value):
         "ea": f"0x{value.ea:X}", "function": value.function_name,
         "function_ea": f"0x{value.function_ea:X}", "operation": value.operation,
         "width_bits": value.width_bits, "evidence": value.evidence,
+        "access_address": f"0x{value.access_address:X}" if value.access_address is not None else None,
         "value": f"0x{value.value:X}" if value.value is not None else None,
         "value_evidence": value.value_evidence,
         "register": value.register.display_name,

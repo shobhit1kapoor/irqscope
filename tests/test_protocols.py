@@ -18,6 +18,7 @@ class ProtocolAnalysisTests(unittest.TestCase):
             0x40000000: Register("UART", "STATUS", 0x40000000, 32),
             0x40000004: Register("UART", "CONTROL", 0x40000004, 32),
             0x40000008: Register("UART", "DATA", 0x40000008, 32),
+            0x4000000C: Register("UART", "CONFIG", 0x4000000C, 32),
         })
 
     def parse_contract(self, contract):
@@ -34,6 +35,7 @@ class ProtocolAnalysisTests(unittest.TestCase):
                     primask=None, basepri=None, faultmask=None):
         register = self.device.get_register({
             "STATUS": 0x40000000, "CONTROL": 0x40000004, "DATA": 0x40000008,
+            "CONFIG": 0x4000000C,
         }[name])
         return MMIOAccess(ea, function, f"fn_{function:X}", register, operation, 32,
                           "fixture", primask=primask, basepri=basepri,
@@ -140,6 +142,56 @@ class ProtocolAnalysisTests(unittest.TestCase):
         self.assertEqual(finding.confidence, "analyst-contract-candidate")
         self.assertEqual([(event.irq_number, event.operation)
                           for event in finding.interrupt_configuration], [(0, "enable")])
+
+    def test_partial_write_value_matching_uses_endian_register_lanes(self):
+        contract = {
+            "format": "irqscope-protocol-v1",
+            "name": "endian-aware UART model",
+            "transactions": [{
+                "name": "configure then arm",
+                "peripheral": "UART",
+                "steps": [
+                    {"register": "STATUS", "operation": "read"},
+                    {"register": "CONFIG", "operation": "write",
+                     "value": 0xAB000000, "value_mask": 0xFF000000},
+                ],
+                "interference": [{"register": "DATA", "operation": "write"}],
+            }],
+        }
+        protocol = self.parse_contract(contract)
+        config = self.device.get_register(0x4000000C)
+        accesses = [
+            self.make_access(0x110, 0x100, "STATUS", "read", 0x100),
+            replace(
+                self.make_access(0x120, 0x100, "CONFIG", "write", 0x100),
+                width_bits=8, value=0xAB, access_address=config.address,
+            ),
+            self.make_access(0x210, 0x200, "DATA", "write", 0x200),
+        ]
+        cfg = {
+            0x100: {0x100: CFGBlock(0x100, 0x130)},
+            0x200: {0x200: CFGBlock(0x200, 0x220)},
+        }
+
+        self.device.endianness = "big"
+        self.device.address_unit_bits = 8
+        big_endian = build_protocol_findings(
+            protocol, self.device, accesses, {0x200: 16}, cfg
+        )
+        self.assertEqual(len(big_endian.findings), 1)
+
+        self.device.endianness = "little"
+        little_endian = build_protocol_findings(
+            protocol, self.device, accesses, {0x200: 16}, cfg
+        )
+        self.assertEqual(little_endian.findings, ())
+
+        self.device.endianness = "big"
+        missing_address = [accesses[0], replace(accesses[1], access_address=None), accesses[2]]
+        unknown_lane = build_protocol_findings(
+            protocol, self.device, missing_address, {0x200: 16}, cfg
+        )
+        self.assertEqual(unknown_lane.findings, ())
 
     def test_ordered_interference_chain_and_best_insertion_gap_are_preserved(self):
         protocol = self.parse_contract({

@@ -535,6 +535,7 @@ def _transfer_block(block, incoming, model, function_ea, function_name, collect=
                     value=written_value,
                     value_evidence=value_evidence,
                     write_constraint_checks=write_constraint_checks,
+                    access_address=address,
                 ))
 
         feature = insn.get_canon_feature()

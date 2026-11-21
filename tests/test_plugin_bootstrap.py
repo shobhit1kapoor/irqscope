@@ -435,6 +435,7 @@ class PluginBootstrapTests(unittest.TestCase):
                 foreground = MMIOAccess(
                     0x110, 0x100, "transfer", status, "read", 32,
                     "absolute-memory-operand", block_start_ea=0x100,
+                    access_address=status.address,
                 )
                 resume = MMIOAccess(
                     0x120, 0x100, "transfer", data, "write", 32,
@@ -459,6 +460,10 @@ class PluginBootstrapTests(unittest.TestCase):
                 )[0]
                 plugin_module._device = device
                 plugin_module._input_sha256 = lambda: "input-sha256"
+                self.assertEqual(
+                    plugin_module._json_access(foreground)["access_address"],
+                    "0x40000000",
+                )
                 serialized_finding = plugin_module._json_value(finding)
                 self.assertIsNone(serialized_finding["candidate_timeline"])
                 protocol_finding = replace(

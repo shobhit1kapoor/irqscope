@@ -171,6 +171,7 @@ class MMIOAccess:
     value: Optional[int] = None
     value_evidence: Optional[str] = None
     write_constraint_checks: Tuple[WriteConstraintCheck, ...] = ()
+    access_address: Optional[int] = None
 
 
 @dataclass(frozen=True)

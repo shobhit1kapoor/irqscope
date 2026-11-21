@@ -212,7 +212,8 @@ class IRQScopeDashboard(ida_kernwin.PluginForm):
         access_layout = self.QtWidgets.QVBoxLayout(access_page)
         access_layout.setContentsMargins(0, 10, 0, 0)
         self.access_table = self._table([
-            "Instruction", "Function", "Op", "Register", "Value / fields", "SVD write checks",
+            "Instruction", "Function", "Op", "Register", "MMIO address",
+            "Value / fields", "SVD write checks",
             "SVD aliases", "Evidence", "PRIMASK", "BASEPRI", "FAULTMASK",
         ], self._jump_access)
         access_layout.addWidget(self._filter_box(self.access_table, "Filter function, register, value, field, operation…"))
@@ -967,6 +968,7 @@ class IRQScopeDashboard(ida_kernwin.PluginForm):
         ] if device else [])
         self._set_rows(self.access_table, [
             (f"0x{item.ea:X}", item.function_name, item.operation.upper(), item.register.display_name,
+             f"0x{item.access_address:X}" if item.access_address is not None else "—",
              self._access_value_summary(item),
              self._access_constraint_summary(item),
              ", ".join(alias.display_name for alias in item.register_aliases) or "—",
