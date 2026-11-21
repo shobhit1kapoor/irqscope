@@ -1,7 +1,7 @@
 """Conservative finding rules over recovered MMIO evidence."""
 
 from collections import deque
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import List, Mapping, Optional, Sequence, Tuple
 
 from .model import (
     AnalysisCancelled, CFGBlock, Finding, InterleavingWitness, MMIOAccess,
@@ -261,6 +261,8 @@ def _write_effect_relation(register, interrupt_access: MMIOAccess,
     interrupt_operations, interrupt_mask, interrupt_scope = interrupt_transform
     foreground_operations, foreground_mask, foreground_scope = foreground_transform
     if interrupt_scope != foreground_scope:
+        return None
+    if interrupt_access.value is None or foreground_access.value is None:
         return None
     overlap = interrupt_mask & foreground_mask
     conflict_mask = 0

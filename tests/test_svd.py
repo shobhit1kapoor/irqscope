@@ -200,6 +200,27 @@ class SVDInheritanceTests(unittest.TestCase):
         self.assertEqual(uncertain[0].status, "unknown")
         self.assertIn("endianness", uncertain[0].detail)
 
+    def test_incomplete_range_constraints_abstain_instead_of_crashing(self):
+        register_constraint = Register(
+            "P", "R", 0x40000000, 32, access="read-write",
+            write_constraint=WriteConstraint("range"),
+        )
+        field_constraint = Register(
+            "P", "R", 0x40000000, 32, access="read-write",
+            fields=(RegisterField(
+                "LOW", 0, 16, access="read-write",
+                write_constraint=WriteConstraint("range", 0, None),
+            ),),
+        )
+
+        register_check = check_write_constraints(register_constraint, 1, 32)[0]
+        field_check = check_write_constraints(field_constraint, 1, 32)[0]
+
+        self.assertEqual(register_check.status, "unknown")
+        self.assertIn("missing minimum or maximum", register_check.detail)
+        self.assertEqual(field_check.status, "unknown")
+        self.assertIn("missing minimum or maximum", field_check.detail)
+
     @staticmethod
     def _write_enum(name, value):
         from irqscope.model import EnumeratedValue, EnumeratedValues
@@ -338,11 +359,12 @@ class SVDInheritanceTests(unittest.TestCase):
           <peripheral><name>BASE</name><baseAddress>0x40000000</baseAddress><registers>
             <register><name>CTRL</name><addressOffset>0x0</addressOffset><fields>{fields}</fields></register>
           </registers></peripheral></peripherals></device>"""
-        valid = lambda name: (
-            f'<field><name>{name}</name><bitOffset>0</bitOffset><bitWidth>2</bitWidth>'
-            f'<enumeratedValues><name>Shared</name><enumeratedValue><name>Off</name>'
-            f'<value>0</value></enumeratedValue></enumeratedValues></field>'
-        )
+        def valid(name):
+            return (
+                f'<field><name>{name}</name><bitOffset>0</bitOffset><bitWidth>2</bitWidth>'
+                f'<enumeratedValues><name>Shared</name><enumeratedValue><name>Off</name>'
+                f'<value>0</value></enumeratedValue></enumeratedValues></field>'
+            )
         unresolved = valid("A") + (
             '<field><name>B</name><bitOffset>2</bitOffset><bitWidth>2</bitWidth>'
             '<enumeratedValues derivedFrom="Missing"/></field>'

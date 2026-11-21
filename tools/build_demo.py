@@ -156,11 +156,11 @@ def build_or_check(root: Path, clang: str, llvm_strip: str, objdump: str,
                         f"Checked-in {name} demo ELF functional sections differ from a clean build. "
                         f"Regenerate it with `python tools/build_demo.py`; generated SHA-256 {digest}."
                     )
-        return hashes
+        return hashes[0], hashes[1]
 
     generated = _build(root, clang, llvm_strip, root / "demo")
     _verify_shape(objdump, *generated)
-    return tuple(_sha256(path) for path in generated)
+    return _sha256(generated[0]), _sha256(generated[1])
 
 
 def main(argv=None) -> int:

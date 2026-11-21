@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from collections import defaultdict
 import hashlib
 import json
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Mapping, Optional, Sequence, Tuple
 
 from .analysis import _build_interleaving_witness, _shortest_block_path
 from .model import AnalysisCancelled, CFGBlock, DeviceModel, Finding, MMIOAccess

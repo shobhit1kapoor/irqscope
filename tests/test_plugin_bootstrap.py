@@ -138,9 +138,9 @@ class PluginBootstrapTests(unittest.TestCase):
 
                 entry_block = FlowBlock(0)
                 following_block = FlowBlock(1, (entry_block,))
-                identity_transfer = lambda block, state: (
-                    dict(state[0]), dict(state[1]), dict(state[2])
-                )
+                def identity_transfer(block, state):
+                    return dict(state[0]), dict(state[1]), dict(state[2])
+
                 _, _, converged, iterations = ida_adapter._propagate_cfg_states(
                     [entry_block, following_block], 0, identity_transfer, iteration_limit=4
                 )

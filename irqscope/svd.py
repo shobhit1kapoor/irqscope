@@ -576,12 +576,15 @@ def check_write_constraints(register: Register, value: Optional[int], access_wid
         if value is None:
             status, detail = "unknown", "store value was not recovered"
         elif constraint.kind == "range" and full_width:
-            status = "satisfied" if constraint.minimum <= value <= constraint.maximum else "violated"
-            detail = (
-                f"0x{value:X} is within 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
-                if status == "satisfied" else
-                f"0x{value:X} is outside 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
-            )
+            if constraint.minimum is None or constraint.maximum is None:
+                status, detail = "unknown", "range constraint is missing minimum or maximum"
+            else:
+                status = "satisfied" if constraint.minimum <= value <= constraint.maximum else "violated"
+                detail = (
+                    f"0x{value:X} is within 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
+                    if status == "satisfied" else
+                    f"0x{value:X} is outside 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
+                )
         elif constraint.kind == "enumerated-values-only" and full_width:
             full_register_field = next((field for field in register.fields
                                         if field.bit_offset == 0
@@ -618,13 +621,16 @@ def check_write_constraints(register: Register, value: Optional[int], access_wid
         elif value is None:
             status, detail = "unknown", "store value was not recovered"
         elif constraint.kind == "range":
-            field_value = (value >> (field.bit_offset - lane_start)) & ((1 << field.bit_width) - 1)
-            status = "satisfied" if constraint.minimum <= field_value <= constraint.maximum else "violated"
-            detail = (
-                f"field value 0x{field_value:X} is within 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
-                if status == "satisfied" else
-                f"field value 0x{field_value:X} is outside 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
-            )
+            if constraint.minimum is None or constraint.maximum is None:
+                status, detail = "unknown", "range constraint is missing minimum or maximum"
+            else:
+                field_value = (value >> (field.bit_offset - lane_start)) & ((1 << field.bit_width) - 1)
+                status = "satisfied" if constraint.minimum <= field_value <= constraint.maximum else "violated"
+                detail = (
+                    f"field value 0x{field_value:X} is within 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
+                    if status == "satisfied" else
+                    f"field value 0x{field_value:X} is outside 0x{constraint.minimum:X}..0x{constraint.maximum:X}"
+                )
         elif constraint.kind == "enumerated-values-only":
             field_value = (value >> (field.bit_offset - lane_start)) & ((1 << field.bit_width) - 1)
             status, detail = _enumerated_write_check(field, field_value)
